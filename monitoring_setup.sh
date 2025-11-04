@@ -1,20 +1,19 @@
 #!/bin/bash
 set -e
 
-# ============================
-# CONFIGURACIÓN BÁSICA
-# ============================
-INSTALL_DIR="$HOME/.local"
-BIN_DIR="$INSTALL_DIR/bin"
-ETC_DIR="$INSTALL_DIR/etc"
-VAR_DIR="$INSTALL_DIR/var"
-TMP_DIR="/tmp"
+# ====================================
+# CONFIGURACIÓN GENERAL
+# ====================================
+INSTALL_DIR="/usr/local/bin"
+ETC_DIR="/etc"
+VAR_DIR="/var/lib"
+TMP_DIR="/tmp/monitoring_setup"
 
-mkdir -p "$BIN_DIR" "$ETC_DIR" "$VAR_DIR"
+mkdir -p "$INSTALL_DIR" "$ETC_DIR" "$VAR_DIR" "$TMP_DIR"
 
-# ============================
+# ====================================
 # 1. PROMETHEUS
-# ============================
+# ====================================
 echo "[+] Instalando Prometheus..."
 
 cd "$TMP_DIR"
@@ -23,7 +22,7 @@ tar xzf prometheus-2.47.0.linux-amd64.tar.gz
 cd prometheus-2.47.0.linux-amd64
 
 mkdir -p "$ETC_DIR/prometheus" "$VAR_DIR/prometheus"
-cp prometheus promtool "$BIN_DIR/"
+cp prometheus promtool "$INSTALL_DIR/"
 cp -r consoles console_libraries "$ETC_DIR/prometheus/"
 
 # Configuración Prometheus
@@ -91,9 +90,9 @@ groups:
           description: "Network receive rate is above 10MB/s"
 EOF
 
-# ============================
+# ====================================
 # 2. ALERTMANAGER
-# ============================
+# ====================================
 echo "[+] Instalando Alertmanager..."
 
 cd "$TMP_DIR"
@@ -102,7 +101,7 @@ tar xzf alertmanager-0.26.0.linux-amd64.tar.gz
 cd alertmanager-0.26.0.linux-amd64
 
 mkdir -p "$ETC_DIR/alertmanager" "$VAR_DIR/alertmanager"
-cp alertmanager amtool "$BIN_DIR/"
+cp alertmanager amtool "$INSTALL_DIR/"
 
 cat > "$ETC_DIR/alertmanager/alertmanager.yml" <<'EOF'
 global:
@@ -129,15 +128,15 @@ inhibit_rules:
     equal: ['alertname', 'instance']
 EOF
 
-# ============================
+# ====================================
 # 3. LOKI
-# ============================
+# ====================================
 echo "[+] Instalando Loki..."
 
 cd "$TMP_DIR"
 wget -q https://github.com/grafana/loki/releases/download/v2.9.2/loki-linux-amd64.zip
 unzip -q loki-linux-amd64.zip
-mv loki-linux-amd64 "$BIN_DIR/loki"
+mv loki-linux-amd64 "$INSTALL_DIR/loki"
 mkdir -p "$ETC_DIR/loki" "$VAR_DIR/loki"
 
 cat > "$ETC_DIR/loki/loki-config.yaml" <<'EOF'
@@ -179,49 +178,29 @@ limits_config:
   ingestion_burst_size_mb: 20
 EOF
 
-# ============================
-# 4. GRAFANA
-# ============================
+# ====================================
+# 4. GRAFANA (APT)
+# ====================================
 echo "[+] Instalando Grafana..."
 
-cd "$TMP_DIR"
-wget -q https://dl.grafana.com/oss/release/grafana-11.2.0.linux-amd64.tar.gz
-tar xzf grafana-11.2.0.linux-amd64.tar.gz
-mv grafana-11.2.0.linux-amd64 "$INSTALL_DIR/grafana"
+mkdir -p /etc/apt/keyrings/
+wget -q -O - https://apt.grafana.com/gpg.key | gpg --dearmor -o /etc/apt/keyrings/grafana.gpg
+echo "deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://apt.grafana.com stable main" > /etc/apt/sources.list.d/grafana.list
+apt update -y
+apt install -y grafana
 
-# Configuración de Grafana
-mkdir -p "$ETC_DIR/grafana"
-cat > "$ETC_DIR/grafana/grafana.ini" <<'EOF'
-[server]
-http_port = 3000
-domain = localhost
+echo "[✓] Grafana instalado correctamente"
+echo "Grafana se iniciará en el puerto 3000"
 
-[security]
-admin_user = admin
-admin_password = admin
-
-[unified_alerting]
-enabled = true
-EOF
-
-# ============================
-# EXPORTAR PATH
-# ============================
-if ! grep -q "$BIN_DIR" <<< "$PATH"; then
-  echo "export PATH=\$PATH:$BIN_DIR" >> "$HOME/.bashrc"
-  export PATH="$PATH:$BIN_DIR"
-fi
-
-# ============================
-# FIN
-# ============================
+# ====================================
+# FINAL
+# ====================================
 echo ""
-echo "✅ Instalación completada."
-echo "Binarios en: $BIN_DIR"
-echo "Configuraciones en: $ETC_DIR"
+echo "✅ Instalación completada con éxito."
 echo ""
-echo "Para iniciar servicios manualmente:"
-echo "  prometheus --config.file=$ETC_DIR/prometheus/prometheus.yml"
-echo "  alertmanager --config.file=$ETC_DIR/alertmanager/alertmanager.yml"
-echo "  loki --config.file=$ETC_DIR/loki/loki-config.yaml"
-echo "  $INSTALL_DIR/grafana/bin/grafana-server --config=$ETC_DIR/grafana/grafana.ini"
+echo "Servicios disponibles:"
+echo "  • Prometheus -> puerto 9090"
+echo "  • Alertmanager -> puerto 9093"
+echo "  • Loki -> puerto 3100"
+echo "  • Grafana -> puerto 3000"
+echo ""
